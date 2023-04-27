@@ -107,7 +107,6 @@ public class GoPluginImpl implements GoPlugin {
         Map<String, Object> response = new HashMap<>();
         String workingDirectory = null;
         String scriptFileName = null;
-        boolean isWindows = isWindows();
         try {
             Map<String, Object> map = (Map<String, Object>) GSON.fromJson(goPluginApiRequest.requestBody(), Object.class);
 
@@ -118,22 +117,18 @@ public class GoPluginImpl implements GoPlugin {
 
             Map<String, String> scriptConfig = (Map<String, String>) configKeyValuePairs.get("script");
             String scriptValue = scriptConfig.get("value");
-            JobConsoleLogger.getConsoleLogger().printLine("[script-executor] Script: \n ");
-            JobConsoleLogger.getConsoleLogger().printLine("[script-executor] -------------------------");
             JobConsoleLogger.getConsoleLogger().printLine(scriptValue);
-            JobConsoleLogger.getConsoleLogger().printLine("[script-executor] -------------------------");
             Map<String, String> shTypeConfig = (Map<String, String>) configKeyValuePairs.get("shtype");
             String shType = shTypeConfig.get("value");
             if (shType == null || shType.trim().equals("")) {
                 shType = "bash";
             }
-            JobConsoleLogger.getConsoleLogger().printLine("[script-executor] Script Type: " + shType);
 
-            scriptFileName = generateScriptFileName(isWindows);
+            scriptFileName = UUID.randomUUID() + ".sh";
 
-            createScript(workingDirectory, scriptFileName, isWindows, scriptValue);
+            createScript(workingDirectory, scriptFileName, scriptValue);
 
-            int exitCode = executeScript(workingDirectory, shType, scriptFileName, isWindows, environmentVariables);
+            int exitCode = executeScript(workingDirectory, shType, scriptFileName, environmentVariables);
 
             if (exitCode == 0) {
                 response.put("success", true);
@@ -150,42 +145,23 @@ public class GoPluginImpl implements GoPlugin {
         return renderJSON(SUCCESS_RESPONSE_CODE, response);
     }
 
-    private boolean isWindows() {
-        String osName = System.getProperty("os.name");
-        boolean isWindows = osName.toLowerCase().contains("windows");
-        JobConsoleLogger.getConsoleLogger().printLine("[script-executor] OS detected: '" + osName + "'. Is Windows? " + isWindows);
-        return isWindows;
-    }
-
-    private String generateScriptFileName(Boolean isWindows) {
-        return UUID.randomUUID() + (isWindows ? ".bat" : ".sh");
-    }
-
     private Path getScriptPath(String workingDirectory, String scriptFileName) {
         return Paths.get(workingDirectory, scriptFileName);
     }
 
-    private void createScript(String workingDirectory, String scriptFileName, Boolean isWindows, String scriptValue) throws IOException, InterruptedException {
+    private void createScript(String workingDirectory, String scriptFileName, String scriptValue) throws IOException, InterruptedException {
         Path scriptPath = getScriptPath(workingDirectory, scriptFileName);
         Files.writeString(scriptPath, cleanupScript(scriptValue), StandardCharsets.UTF_8);
 
-        if (!isWindows) {
-            executeCommand(workingDirectory, null, "chmod", "u+x", scriptFileName);
-        }
-
-        JobConsoleLogger.getConsoleLogger().printLine("[script-executor] Script written into '" + scriptPath.toAbsolutePath() + "'.");
+        executeCommand(workingDirectory, null, "chmod", "u+x", scriptFileName);
     }
 
     String cleanupScript(String scriptValue) {
         return scriptValue.replaceAll("(\\r\\n|\\n|\\r)", System.getProperty("line.separator"));
     }
 
-    private int executeScript(String workingDirectory, String shType, String scriptFileName, Boolean isWindows, Map<String, String> environmentVariables) throws IOException, InterruptedException {
-        if (isWindows) {
-            return executeCommand(workingDirectory, environmentVariables, "cmd", "/c", scriptFileName);
-        }
-        String shCmd = "/bin/" + shType;
-        return executeCommand(workingDirectory, environmentVariables, shCmd, "-c", "./" + scriptFileName);
+    private int executeScript(String workingDirectory, String shType, String scriptFileName, Map<String, String> environmentVariables) throws IOException, InterruptedException {
+        return executeCommand(workingDirectory, environmentVariables, "/bin/bash", "-euo", "pipefail", "-c", "./" + scriptFileName);
     }
 
     private int executeCommand(String workingDirectory, Map<String, String> environmentVariables, String... command) throws IOException, InterruptedException {
