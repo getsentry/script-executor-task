@@ -161,7 +161,7 @@ public class GoPluginImpl implements GoPlugin {
     }
 
     private int executeScript(String workingDirectory, String shType, String scriptFileName, Map<String, String> environmentVariables) throws IOException, InterruptedException {
-        return executeCommand(workingDirectory, environmentVariables, "/bin/bash", "-euo", "pipefail", "-c", "./" + scriptFileName);
+        return executeCommand(workingDirectory, environmentVariables, "/bin/bash", "-euo", "pipefail", scriptFileName);
     }
 
     private int executeCommand(String workingDirectory, Map<String, String> environmentVariables, String... command) throws IOException, InterruptedException {
